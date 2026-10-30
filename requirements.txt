@@ -1,0 +1,5 @@
+# for running the generator and dbt on your machine (and in CI)
+dbt-core~=1.10.0
+dbt-postgres~=1.9.0
+psycopg[binary]~=3.2
+alpaca-py>=0.30

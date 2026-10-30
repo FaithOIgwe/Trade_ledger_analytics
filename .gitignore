@@ -1,0 +1,14 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+transform/target/
+transform/dbt_packages/
+transform/logs/
+logs/
+
+.DS_Store
+.idea/
+.vscode/
