@@ -6,6 +6,9 @@ version: 2
 models:
   - name: fct_trades
     description: One row per execution. Reversals are separate rows with negative signed_qty.
+    # numeric columns carry their precision here: on an incremental model the
+    # contract's types become the table's types, and on_schema_change=fail
+    # compares later runs against them
     config:
       contract: {enforced: true}
     constraints:
@@ -27,15 +30,15 @@ models:
       - {name: is_reversal, data_type: boolean}
       - {name: reverses_exec_id, data_type: text}
       - name: qty
-        data_type: numeric
+        data_type: numeric(18,4)
         data_tests:
           - positive_values
-      - {name: signed_qty, data_type: numeric}
+      - {name: signed_qty, data_type: numeric(18,4)}
       - name: price
-        data_type: numeric
+        data_type: numeric(18,4)
         data_tests:
           - positive_values
-      - {name: signed_notional_usd, data_type: numeric}
+      - {name: signed_notional_usd, data_type: numeric(18,4)}
       - {name: executed_at, data_type: timestamp with time zone}
       - {name: executed_date, data_type: date}
       - {name: ingested_at, data_type: timestamp with time zone}

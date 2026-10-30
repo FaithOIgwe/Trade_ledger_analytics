@@ -23,7 +23,7 @@ select
     is_reversal,
     reverses_exec_id,
     fill_qty                                                  as qty,
-    signed_qty,
+    signed_qty::numeric(18, 4)                                as signed_qty,
     fill_price                                                as price,
     (signed_qty * fill_price)::numeric(18, 4)                 as signed_notional_usd,
     executed_at,
