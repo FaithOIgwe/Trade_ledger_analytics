@@ -61,7 +61,7 @@ jobs:
         run: |
           python ../generator/generate.py tick --orders 30
           dbt snapshot
-          dbt build --select fct_trades+ --exclude resource_type:snapshot
+          dbt build --exclude resource_type:snapshot
 
       # put failed models/tests on the PR as annotations, so nobody has to
       # scroll through the whole dbt log to find what broke
