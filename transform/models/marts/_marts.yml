@@ -1,0 +1,130 @@
+version: 2
+
+# Every mart has an enforced contract. If someone changes a column name or
+# type upstream, the build fails here instead of a dashboard quietly breaking.
+
+models:
+  - name: fct_trades
+    description: One row per execution. Reversals are separate rows with negative signed_qty.
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [exec_id]
+    columns:
+      - {name: exec_id, data_type: text, constraints: [{type: not_null}]}
+      - {name: order_id, data_type: uuid, constraints: [{type: not_null}]}
+      - name: account_id
+        data_type: uuid
+        constraints: [{type: not_null}]
+        data_tests:
+          - relationships: {to: ref('dim_accounts'), field: account_id}
+      - {name: symbol, data_type: text}
+      - name: side
+        data_type: text
+        data_tests:
+          - accepted_values: {values: [buy, sell]}
+      - {name: is_reversal, data_type: boolean}
+      - {name: reverses_exec_id, data_type: text}
+      - name: qty
+        data_type: numeric
+        data_tests:
+          - positive_values
+      - {name: signed_qty, data_type: numeric}
+      - name: price
+        data_type: numeric
+        data_tests:
+          - positive_values
+      - {name: signed_notional_usd, data_type: numeric}
+      - {name: executed_at, data_type: timestamp with time zone}
+      - {name: executed_date, data_type: date}
+      - {name: ingested_at, data_type: timestamp with time zone}
+      - {name: arrival_lag_minutes, data_type: integer}
+      - {name: is_late_arrival, data_type: boolean}
+
+  - name: fct_orders
+    description: One row per order with fill outcome.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: order_id
+        data_type: uuid
+        constraints: [{type: not_null}]
+        data_tests: [unique]
+      - {name: client_order_id, data_type: text}
+      - {name: account_id, data_type: uuid}
+      - {name: symbol, data_type: text}
+      - {name: side, data_type: text}
+      - {name: order_type, data_type: text}
+      - {name: order_status, data_type: text}
+      - {name: order_qty, data_type: numeric}
+      - {name: limit_price, data_type: numeric}
+      - {name: filled_qty, data_type: numeric}
+      - {name: avg_fill_price, data_type: numeric}
+      - {name: fill_ratio, data_type: numeric}
+      - {name: execution_count, data_type: integer}
+      - {name: reversal_count, data_type: integer}
+      - {name: submitted_at, data_type: timestamp with time zone}
+      - {name: first_executed_at, data_type: timestamp with time zone}
+      - {name: last_executed_at, data_type: timestamp with time zone}
+      - {name: seconds_to_first_fill, data_type: numeric}
+      - {name: updated_at, data_type: timestamp with time zone}
+
+  - name: fct_cash_ledger
+    description: Every cash movement with the account balance after it.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: movement_id
+        data_type: uuid
+        constraints: [{type: not_null}]
+        data_tests: [unique]
+      - {name: account_id, data_type: uuid}
+      - {name: movement_type, data_type: text}
+      - {name: amount, data_type: numeric}
+      - {name: currency, data_type: text}
+      - {name: reference_id, data_type: text}
+      - {name: created_at, data_type: timestamp with time zone}
+      - {name: created_date, data_type: date}
+      - {name: balance_after, data_type: numeric}
+
+  - name: fct_daily_positions
+    description: End-of-day holdings per account and symbol, valued at the latest close.
+    config:
+      contract: {enforced: true}
+    data_tests:
+      - unique_combination_of_columns:
+          columns: [account_id, symbol, position_date]
+    columns:
+      - {name: account_id, data_type: uuid}
+      - {name: symbol, data_type: text}
+      - {name: position_date, data_type: date}
+      - {name: quantity, data_type: numeric}
+      - name: close_price
+        data_type: numeric
+        data_tests:
+          - not_null:
+              config: {severity: warn}
+      - {name: market_value_usd, data_type: numeric}
+
+  - name: dim_accounts
+    description: Current account attributes, from the snapshot.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: account_id
+        data_type: uuid
+        constraints: [{type: not_null}]
+        data_tests: [unique]
+      - {name: customer_name, data_type: text}
+      - {name: country_code, data_type: text}
+      - {name: account_type, data_type: text}
+      - {name: account_status, data_type: text}
+      - {name: account_tier, data_type: text}
+      - {name: created_at, data_type: timestamp with time zone}
+      - {name: first_deposit_at, data_type: timestamp with time zone}
+      - {name: first_trade_at, data_type: timestamp with time zone}
+      - {name: last_trade_at, data_type: timestamp with time zone}
+      - {name: lifetime_executions, data_type: integer}
+      - {name: times_changed, data_type: integer}
+      - {name: current_since, data_type: timestamp with time zone}
