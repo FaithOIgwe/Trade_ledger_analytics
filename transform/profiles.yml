@@ -1,0 +1,12 @@
+brokerage:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('DBT_HOST', 'localhost') }}"
+      port: "{{ env_var('DBT_PORT', '5432') | int }}"
+      user: "{{ env_var('DBT_USER', 'brokerage') }}"
+      password: "{{ env_var('DBT_PASSWORD', 'brokerage') }}"
+      dbname: "{{ env_var('DBT_DATABASE', 'brokerage') }}"
+      schema: analytics
+      threads: 4

@@ -1,0 +1,12 @@
+snapshots:
+  - name: snap_accounts
+    description: >
+      Type 2 history of accounts. Tier and status get overwritten in the
+      source, so this is the only place we can answer "what tier was this
+      customer on when they placed that trade?"
+    relation: source('brokerage', 'accounts')
+    config:
+      schema: snapshots
+      unique_key: account_id
+      strategy: timestamp
+      updated_at: updated_at

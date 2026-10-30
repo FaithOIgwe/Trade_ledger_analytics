@@ -1,0 +1,25 @@
+version: 2
+
+sources:
+  - name: market
+    description: Daily bars loaded by ingestion/load_market_prices.py (Alpaca), with synthetic fill-ins from the generator.
+    schema: raw
+    tables:
+      - name: market_prices
+        loaded_at_field: loaded_at
+        # daily data, and nothing arrives over the weekend
+        freshness:
+          warn_after: {count: 36, period: hour}
+          error_after: {count: 96, period: hour}
+        columns:
+          - name: close
+            data_tests: [not_null]
+
+models:
+  - name: stg_market__daily_prices
+    data_tests:
+      - unique_combination_of_columns:
+          columns: [symbol, bar_date]
+    columns:
+      - name: close_price
+        data_tests: [not_null]

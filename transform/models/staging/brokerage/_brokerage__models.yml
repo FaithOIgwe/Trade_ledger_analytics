@@ -1,0 +1,72 @@
+version: 2
+
+models:
+  - name: stg_brokerage__accounts
+    columns:
+      - name: account_id
+        data_tests: [unique, not_null]
+      - name: account_type
+        data_tests:
+          - accepted_values:
+              values: [cash, margin]
+      - name: account_status
+        data_tests:
+          - accepted_values:
+              values: [active, restricted, closed]
+
+  - name: stg_brokerage__orders
+    columns:
+      - name: order_id
+        data_tests: [unique, not_null]
+      - name: account_id
+        data_tests:
+          - relationships:
+              to: ref('stg_brokerage__accounts')
+              field: account_id
+      - name: side
+        data_tests:
+          - accepted_values:
+              values: [buy, sell]
+      - name: order_status
+        data_tests:
+          - accepted_values:
+              values: [new, partially_filled, filled, canceled, rejected]
+
+  - name: stg_brokerage__fills
+    description: One row per execution (exec_id). Duplicate reports from the feed are dropped here.
+    columns:
+      - name: exec_id
+        data_tests: [unique, not_null]
+      - name: order_id
+        data_tests:
+          - relationships:
+              to: ref('stg_brokerage__orders')
+              field: order_id
+      - name: duplicate_reports_dropped
+        description: >
+          How many extra reports we got for this execution. Worth alerting on
+          if the daily total jumps; it usually means the venue connection is flapping.
+
+  - name: stg_brokerage__cash_movements
+    columns:
+      - name: movement_id
+        data_tests: [unique, not_null]
+      - name: movement_type
+        data_tests:
+          - accepted_values:
+              values: [deposit, withdrawal, trade_settlement, fee]
+
+unit_tests:
+  - name: duplicate_execution_reports_keep_the_first_one
+    description: Same exec_id delivered twice. Only the earliest report survives and the extra is counted.
+    model: stg_brokerage__fills
+    given:
+      - input: source('brokerage', 'fills')
+        rows:
+          - {fill_id: "00000000-0000-0000-0000-000000000001", exec_id: EX1, order_id: "00000000-0000-0000-0000-0000000000a1", qty: 10, price: 100, executed_at: "2026-10-01 14:30:00+00", ingested_at: "2026-10-01 14:30:05+00", is_reversal: false, reverses_exec_id: null}
+          - {fill_id: "00000000-0000-0000-0000-000000000002", exec_id: EX1, order_id: "00000000-0000-0000-0000-0000000000a1", qty: 10, price: 100, executed_at: "2026-10-01 14:30:00+00", ingested_at: "2026-10-01 14:35:00+00", is_reversal: false, reverses_exec_id: null}
+          - {fill_id: "00000000-0000-0000-0000-000000000003", exec_id: EX2, order_id: "00000000-0000-0000-0000-0000000000a1", qty: 5, price: 101, executed_at: "2026-10-01 14:31:00+00", ingested_at: "2026-10-01 14:31:02+00", is_reversal: false, reverses_exec_id: null}
+    expect:
+      rows:
+        - {exec_id: EX1, fill_id: "00000000-0000-0000-0000-000000000001", duplicate_reports_dropped: 1}
+        - {exec_id: EX2, fill_id: "00000000-0000-0000-0000-000000000003", duplicate_reports_dropped: 0}

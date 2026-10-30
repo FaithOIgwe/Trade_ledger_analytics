@@ -1,0 +1,41 @@
+version: 2
+
+sources:
+  - name: brokerage
+    description: The trading system's own database (Postgres, schema `brokerage`).
+    schema: brokerage
+    # Freshness SLA: orders and fills should never be more than 1 hour old
+    # during the session. Over 6 hours means the feed is down and the
+    # pipeline stops before anything downstream is rebuilt.
+    freshness:
+      warn_after: {count: 1, period: hour}
+      error_after: {count: 6, period: hour}
+    tables:
+      - name: accounts
+        freshness: null   # accounts change rarely, staleness here is normal
+        columns:
+          - name: account_id
+            data_tests: [unique, not_null]
+
+      - name: orders
+        loaded_at_field: updated_at
+        columns:
+          - name: order_id
+            data_tests: [unique, not_null]
+
+      - name: fills
+        description: >
+          One row per execution report received. Not unique on exec_id:
+          retries from the venue can deliver the same execution twice.
+        loaded_at_field: ingested_at
+        columns:
+          - name: fill_id
+            data_tests: [unique, not_null]
+          - name: exec_id
+            data_tests: [not_null]
+
+      - name: cash_movements
+        loaded_at_field: created_at
+        columns:
+          - name: movement_id
+            data_tests: [unique, not_null]

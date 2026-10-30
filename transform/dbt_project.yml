@@ -1,0 +1,30 @@
+name: brokerage
+version: "1.0.0"
+config-version: 2
+profile: brokerage
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+seed-paths: ["seeds"]
+target-path: target
+clean-targets: [target, dbt_packages]
+
+vars:
+  # how far back fct_trades re-reads on an incremental run.
+  # late fills already come through on ingested_at, this is just a safety
+  # margin for clock skew between the feed and the database
+  trades_lookback_hours: 6
+
+models:
+  brokerage:
+    staging:
+      +schema: staging
+      +materialized: view
+    intermediate:
+      +schema: intermediate
+      +materialized: view
+    marts:
+      +schema: analytics
+      +materialized: table
