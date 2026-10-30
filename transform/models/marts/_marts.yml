@@ -33,12 +33,12 @@ models:
         data_type: numeric(18,4)
         data_tests:
           - positive_values
-      - {name: signed_qty, data_type: numeric(18,4)}
+      - {name: signed_qty, data_type: "numeric(18,4)"}
       - name: price
         data_type: numeric(18,4)
         data_tests:
           - positive_values
-      - {name: signed_notional_usd, data_type: numeric(18,4)}
+      - {name: signed_notional_usd, data_type: "numeric(18,4)"}
       - {name: executed_at, data_type: timestamp with time zone}
       - {name: executed_date, data_type: date}
       - {name: ingested_at, data_type: timestamp with time zone}
