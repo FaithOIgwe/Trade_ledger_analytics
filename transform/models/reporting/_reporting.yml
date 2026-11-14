@@ -1,0 +1,98 @@
+version: 2
+
+# The reporting layer is what a person or a dashboard reads. Each model is
+# one question at one grain, with the definition written down next to it.
+# Longer notes on why each metric is defined the way it is are in
+# docs/metric-definitions.md.
+
+models:
+  - name: rpt_daily_trading_summary
+    description: >
+      One row per trading day (UTC). Volume, active customers, and how much
+      of the day needed a second look (reversals, late-arriving fills).
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: trade_date
+        data_type: date
+        constraints: [{type: not_null}]
+        data_tests: [unique]
+      - name: active_accounts
+        data_type: integer
+        description: Distinct accounts with at least one execution that day. Reversals alone don't make an account active.
+      - name: executions
+        data_type: integer
+        description: Executions that day, excluding reversal rows.
+      - name: reversals
+        data_type: integer
+        description: Reversal rows dated that day. Counted on their own, never netted into executions.
+      - name: gross_notional_usd
+        data_type: numeric
+        description: Sum of qty x price over executions, buys and sells both positive. Excludes reversals.
+      - name: reversed_notional_usd
+        data_type: numeric
+        description: Sum of qty x price over reversal rows.
+      - name: net_buy_notional_usd
+        data_type: numeric
+        description: Signed notional. Positive means customers were net buyers that day. Includes reversals, so it ties to positions.
+      - name: late_arrivals
+        data_type: integer
+        description: Rows that reached us more than an hour after they executed.
+      - name: late_arrival_rate
+        data_type: numeric
+        description: late_arrivals divided by all rows for the day.
+
+  - name: rpt_account_activation
+    description: >
+      Activation funnel by signup cohort month. Every account is counted
+      once, in the month it was opened.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: cohort_month
+        data_type: date
+        constraints: [{type: not_null}]
+        data_tests: [unique]
+      - name: accounts_opened
+        data_type: integer
+      - name: accounts_funded
+        data_type: integer
+        description: Accounts from the cohort that have made at least one deposit, at any time since.
+      - name: accounts_traded
+        data_type: integer
+        description: Accounts from the cohort with at least one execution, at any time since.
+      - name: funded_rate
+        data_type: numeric
+      - name: traded_rate
+        data_type: numeric
+      - name: median_days_to_first_trade
+        data_type: numeric
+        description: Median days from account opening to first execution, over accounts that have traded. Null if none have.
+
+  - name: rpt_feed_quality_daily
+    description: >
+      One row per ingestion day (UTC). Duplicate execution reports dropped,
+      late arrivals and reversals received, so feed problems show up as a
+      number that moves.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: ingested_date
+        data_type: date
+        constraints: [{type: not_null}]
+        data_tests: [unique]
+      - name: executions_kept
+        data_type: integer
+        description: Distinct executions first received that day, after deduplication.
+      - name: duplicate_reports_dropped
+        data_type: integer
+        description: Extra reports for those executions that staging threw away.
+      - name: duplicate_report_rate
+        data_type: numeric
+        description: duplicate_reports_dropped divided by all reports received (kept plus dropped).
+      - name: late_arrivals
+        data_type: integer
+      - name: max_arrival_lag_minutes
+        data_type: integer
+      - name: reversals_received
+        data_type: integer
