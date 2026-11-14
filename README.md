@@ -1,5 +1,7 @@
 # trade-ledger-analytics
 
+[![dbt ci](https://github.com/FaithOIgwe/Trade_ledger_analytics/actions/workflows/dbt-ci.yml/badge.svg)](https://github.com/FaithOIgwe/Trade_ledger_analytics/actions/workflows/dbt-ci.yml)
+
 A small brokerage data platform I built to practise the parts of analytics engineering that don't show up in dashboard work: modelling messy financial event data, contracts and freshness checks, incremental loads, open table formats, and change data capture.
 
 The setup is a pretend retail brokerage. A Postgres database plays the role of the trading system (accounts, orders, executions, cash movements), a Python script keeps it busy, and daily prices come from Alpaca's market data API. From there the data goes three ways:
@@ -19,6 +21,14 @@ flowchart LR
     pg -- WAL --> dbz[Debezium] --> rp[Redpanda] --> ch[(ClickHouse)]
 ```
 
+## If you only have five minutes
+
+- [`transform/models/marts/fct_trades.sql`](transform/models/marts/fct_trades.sql): incremental on arrival time, with reversals kept as rows
+- [`transform/models/staging/brokerage/stg_brokerage__fills.sql`](transform/models/staging/brokerage/stg_brokerage__fills.sql): the dedupe, and why duplicates are counted instead of silently dropped
+- [`transform/tests/assert_trade_cash_reconciles.sql`](transform/tests/assert_trade_cash_reconciles.sql): the test that ties every execution to its cash settlement
+- [`docs/metric-definitions.md`](docs/metric-definitions.md): what each reporting metric counts and what it leaves out
+- [`.github/workflows/dbt-ci.yml`](.github/workflows/dbt-ci.yml): every push builds the project twice, so the incremental path is tested too
+
 ## Why a brokerage
 
 Most of my work has been on payments and lending data, where the hard part is never the SQL. It's that the same transaction shows up twice, a reversal lands in a different period from the original, and two teams get different totals from the "same" table. Trading data has all of that and a bit more, so the generator deliberately produces:
@@ -34,7 +44,8 @@ Most of my work has been on payments and lending data, where the hard part is ne
 transform/models
 ├── staging        one model per source table, renamed and typed; fills deduplicated on exec_id
 ├── intermediate   executions with order context and signed quantities; per-order fill summary
-└── marts          fct_trades, fct_orders, fct_cash_ledger, fct_daily_positions, dim_accounts
+├── marts          fct_trades, fct_orders, fct_cash_ledger, fct_daily_positions, dim_accounts
+└── reporting      one question per model: daily trading summary, account activation, feed quality
 ```
 
 A few decisions worth explaining:
@@ -49,6 +60,20 @@ A few decisions worth explaining:
 
 **Account history is a snapshot.** Tier and status are overwritten in the source, so `snap_accounts` (SCD Type 2) is the only place that can answer "what tier was this customer on when they placed that trade?"
 
+### The reporting layer
+
+The marts are for people who write SQL. The reporting models are for whoever asks the question, so each one answers one thing at one grain:
+
+| model | grain | the question |
+| --- | --- | --- |
+| `rpt_daily_trading_summary` | trading day | how much traded, by how many customers, and how much of it was reversed or arrived late? |
+| `rpt_account_activation` | signup cohort month | of the accounts opened each month, how many funded, how many traded, and how fast? |
+| `rpt_feed_quality_daily` | ingestion day | how many duplicate reports and late fills did the feed send today? |
+
+The activation funnel counts each account once, in the month it was opened. Lining up "funded this month" against "traded this month" mixes cohorts, and adding up daily distinct counts double-counts anyone who comes back, which is the most common way I've seen a funnel go wrong. The definitions, including what each metric deliberately leaves out, are in [docs/metric-definitions.md](docs/metric-definitions.md).
+
+`transform/analyses/` has a couple of worked questions on top of these, for example finding the days when the duplicate rate ran at more than double its trailing average.
+
 ### Tests
 
 Generic tests on keys, relationships and accepted values, plus a few that encode the actual money rules:
@@ -59,6 +84,8 @@ Generic tests on keys, relationships and accepted values, plus a few that encode
 | `assert_fills_never_exceed_order_qty` | duplicate reports leaking past staging |
 | `assert_no_short_positions` | a sell without its buy, or a reversal applied twice |
 | `assert_no_future_ingestion` | the timestamp problem described above |
+| `assert_daily_summary_ties_to_trades` | the daily summary drifting from `fct_trades` (a filter or join dropping or doubling rows) |
+| `assert_activation_funnel_is_consistent` | a funnel stage bigger than its cohort, or accounts lost or double-counted across cohorts |
 | unit test on `stg_brokerage__fills` | the dedupe logic, with three hand-written rows |
 
 ### Freshness SLAs
@@ -132,4 +159,4 @@ docs/             write-ups
 - Run the same dbt models on Trino with `dbt-trino`, so the lakehouse isn't just a copy
 - Corporate actions: splits would change position quantities and need their own handling
 - Slim CI (`state:modified+`) once there are enough models for it to matter
-- Real alerting instead of the log line in the DAG's failure callback
+- Real alerting instead of the log line in the DAG's failure callback, starting with a threshold on `rpt_feed_quality_daily`
